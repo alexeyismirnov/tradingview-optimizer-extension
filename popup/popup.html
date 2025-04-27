@@ -29,6 +29,11 @@
             Home</button>
         </li>
         <li class="nav-item" role="presentation">
+          <button class="nav-link" id="favs-tab" data-bs-toggle="tab" data-bs-target="#favs-tab-pane"
+            type="button" role="tab" aria-controls="favs-tab-pane" aria-selected="false"><i class="bi-star-fill"></i>
+            Favs</button>
+        </li>
+        <li class="nav-item" role="presentation">
           <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports-tab-pane"
             type="button" role="tab" aria-controls="reports-tab-pane" aria-selected="false"><i class="bi-bar-chart"></i>
             Reports</button>
@@ -116,6 +121,9 @@
                   class="bi bi-plus-circle"></i>Add Parameter</button>
             </div>
             <div class="col">
+              <button type="button" class="btn btn-success btn float-end me-2" id="save-parameters">
+                <i class="bi bi-save"></i> Save
+              </button>
               <button type="button" class="btn btn-dark btn float-end" id="optimize"><i
                   class="bi bi-graph-up-arrow"></i>Optimize</button>
               <div class="container" id="skeleton-stop">
@@ -128,6 +136,77 @@
           </div>
         </div>
       </div>
+
+      <!-- Favorites Tab Content -->
+<div class="tab-pane fade" id="favs-tab-pane" role="tabpanel" aria-labelledby="favs-tab">
+  <div class="container-fluid">
+    <!-- Favorites Table -->
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Favorite Symbols</h5>
+            <div class="d-flex justify-content-end mb-3">
+              <div class="input-group" style="max-width: 300px;">
+                <input type="text" id="favs-search" class="form-control" placeholder="Search favorites..." 
+                       data-bs-toggle="tooltip" title="Search by symbol or exchange"
+                       data-search-formatter="true" data-search-align="left">
+                <button class="btn btn-outline-secondary" type="button" id="clear-favs-search">
+                  <i class="bi bi-x-circle"></i>
+                </button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table id="favs-table" 
+                     data-search="true"
+                     data-search-selector="#favs-search"
+                     data-pagination="true"
+                     data-page-size="10"
+                     data-page-list="[10, 25, 50, 100, all]">
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Symbol Form -->
+    <div class="row mb-3">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Add Symbol to Favorites</h5>
+            <form id="add-fav-form">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label for="fav-symbol" class="form-label">Symbol</label>
+                  <input type="text" class="form-control" id="fav-symbol" placeholder="e.g. AAPL" required>
+                </div>
+                <div class="col-md-4">
+                  <label for="fav-exchange" class="form-label">Exchange (optional)</label>
+                  <input type="text" class="form-control" id="fav-exchange" placeholder="e.g. NASDAQ">
+                </div>
+                <div class="col-md-4">
+                  <label for="fav-parameters" class="form-label">Parameters</label>
+                  <input type="text" class="form-control" id="fav-parameters" placeholder="Parameters will be auto-populated">
+                </div>
+              </div>
+              <div class="mt-3 d-flex justify-content-between">
+                <button type="button" id="save-current-symbol" class="btn btn-secondary">
+                  <i class="bi bi-arrow-down-circle"></i> Get Current
+                </button>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-plus-circle"></i> Add to Favorites
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
       <div class="tab-pane fade" id="reports-tab-pane" role="tabpanel" aria-labelledby="reports-tab" tabindex="0">
         <div class="container-fluid">
           <div class="toolbar">
@@ -375,6 +454,7 @@
   <script src="/libs/bootstrap-table/js/bootstrap-table.min.js"></script>
   <script src="/libs/bootstrap-multiselect/js/bootstrap-multiselect.min.js"></script>
   <script src="popup.js"></script>
+  <script src="favorites.js"></script>
 </body>
 
 </html>

@@ -169,3 +169,70 @@ table#table tbody {
 .container-fluid.footer {
     font-size: 14px;
 }
+.toolbar-favs {
+    margin-right: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  table#favs-table thead {
+    font-size: 13px;
+  }
+  
+  table#favs-table tbody {
+    font-size: 12px;
+  }
+  
+  /* Styles for the favorites tab */
+  #favs-tab-pane .card-header {
+    background-color: #f8f9fa;
+  }
+  
+  .fav-actions-btn {
+    margin: 0 2px;
+  }
+  
+  #favs-search {
+    font-size: 14px;
+  }
+  
+  #add-fav-form label {
+    font-weight: 500;
+  }
+  
+  .symbol-category {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  
+  .category-crypto {
+    background-color: #f3ba2f;
+    color: #000;
+  }
+  
+  .category-forex {
+    background-color: #2e7d32;
+    color: #fff;
+  }
+  
+  .category-stock {
+    background-color: #1976d2;
+    color: #fff;
+  }
+  
+  .category-futures {
+    background-color: #7b1fa2;
+    color: #fff;
+  }
+  
+  .category-index {
+    background-color: #c62828;
+    color: #fff;
+  }
+  
+  .category-other {
+    background-color: #607d8b;
+    color: #fff;
+  }

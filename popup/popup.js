@@ -479,46 +479,201 @@ logoutButtons.forEach(logoutButton => {
 })
 
 
-
 //#endregion
 
-function addParameterBlock(parameterLimit) {
-  var parameters = document.getElementById("parameters")
-  var parameterCount = parameters.children.length
-
-  if (parameterCount < parameterLimit) {
-    // Hide Last Remove Div for added parameters
-    if (parameterCount > 1) {
-      var removeDiv = "#remove" + parameterCount + ""
-      parameters.lastElementChild.querySelector(removeDiv).style = 'display:none;'
+// Add Save Parameters button event listener
+document.getElementById("save-parameters").addEventListener("click", function() {
+  // Get current parameters
+  const parametersContainer = document.getElementById("parameters");
+  const parameterCount = parametersContainer.children.length;
+  
+  let savedParameters = [];
+  
+  // Get parameters
+  for (let i = 0; i < parameterCount; i++) {
+    const row = parametersContainer.children[i];
+    const inputStart = row.querySelector("#inputStart");
+    const inputEnd = row.querySelector("#inputEnd");
+    const inputStep = row.querySelector("#inputStep");
+    const selectEl = row.querySelector("#selectAutoFill");
+    
+    if (inputStart && inputEnd && inputStep) {
+      const startValue = inputStart.value;
+      const endValue = inputEnd.value;
+      const stepValue = inputStep.value;
+      
+      const parameterName = selectEl && selectEl.selectedIndex > 0 ? 
+        selectEl.options[selectEl.selectedIndex].text : `Parameter ${i+1}`;
+      
+      if (startValue && endValue && stepValue) {
+        savedParameters.push({
+          parameterName,
+          start: startValue,
+          end: endValue,
+          stepSize: stepValue
+        });
+      }
     }
+  }
+  
+  // Save to storage
+  chrome.storage.local.set({ "savedParameters": savedParameters }, () => {
+    // Show success notification
+    chrome.runtime.sendMessage({
+      notify: {
+        type: "success",
+        content: "Parameters saved successfully"
+      }
+    });
+  });
+});
 
+// Modified function to add parameter block with optional predefined values
+function addParameterBlock(parameterLimit, predefinedValues = null) {
+  var parameters = document.getElementById("parameters");
+  var parameterCount = parameters.children.length;
+  
+  if (parameterCount < parameterLimit) {
     // Add Parameter Block
-    var orderOfParameter = parameterCount + 1
-    var divToAppend = addParameterBlockHtml(orderOfParameter)
-    parameters.insertAdjacentHTML('beforeend', divToAppend)
-
-    // Enable auto fill plus feature if eligible  
-    setTimeout(() => {
-      chrome.storage.local.get("parameterNames", ({ parameterNames }) => {
-        if (parameterNames != null && parameterNames.length > 0) {
-          autoFillParameters(parameterNames)
+    var orderOfParameter = parameterCount + 1;
+    var divToAppend = addParameterBlockHtml(orderOfParameter);
+    parameters.insertAdjacentHTML('beforeend', divToAppend);
+    
+    // Get the newly added row
+    const newRow = parameters.lastElementChild;
+    
+    // Get input elements
+    const inputStart = newRow.querySelector("#inputStart");
+    const inputEnd = newRow.querySelector("#inputEnd");
+    const inputStep = newRow.querySelector("#inputStep");
+    const selectEl = newRow.querySelector("#selectAutoFill");
+    
+    // If predefined values are provided, set them
+    if (predefinedValues && inputStart && inputEnd && inputStep) {
+      inputStart.value = predefinedValues.start || '';
+      inputEnd.value = predefinedValues.end || '';
+      inputStep.value = predefinedValues.stepSize || '';
+      
+      // Try to select the matching option in the dropdown if parameterName is provided
+      if (predefinedValues.parameterName && selectEl) {
+        for (let i = 0; i < selectEl.options.length; i++) {
+          if (selectEl.options[i].text === predefinedValues.parameterName) {
+            selectEl.selectedIndex = i;
+            break;
+          }
         }
+      }
+    }
+    
+    // Add event listeners to all input fields to recalculate iterations
+    if (inputStart && inputEnd && inputStep) {
+      // Add event listeners for both input and blur events
+      inputStart.addEventListener("input", calculateIterations);
+      inputStart.addEventListener("blur", function() {
+        var start = "inputStart" + (parameterCount);
+        var value = inputStart.value;
+        chrome.storage.local.set({ [start]: value });
+        calculateIterations();
       });
-    }, 250);
-
-    // Increment User's Last Parameter Count State    
-    chrome.storage.local.set({ "userParameterCount": parameterCount + 1 });
-
-    // Add Remove Button Event Listener
-    addRemoveParameterBlockEventListener(parameterCount)
-
-    // Save Inputs EventListener for rest of the parameters
-    addSaveInputEventListener(parameterCount)
-    addSaveAutoFillSelectionListener(parameterCount)
-    calculateIterations()
+      
+      inputEnd.addEventListener("input", calculateIterations);
+      inputEnd.addEventListener("blur", function() {
+        var end = "inputEnd" + (parameterCount);
+        var value = inputEnd.value;
+        chrome.storage.local.set({ [end]: value });
+        calculateIterations();
+      });
+      
+      inputStep.addEventListener("input", calculateIterations);
+      inputStep.addEventListener("blur", function() {
+        var step = "inputStep" + (parameterCount);
+        var value = inputStep.value;
+        chrome.storage.local.set({ [step]: value });
+        calculateIterations();
+      });
+    }
+    
+    // Add Remove Button Listener
+    var removeButton = newRow.querySelector(".btn-close.remove-parameters");
+    
+    // Check if the button exists before adding the event listener
+    if (removeButton) {
+      removeButton.addEventListener("click", () => {
+        parameters.removeChild(newRow);
+        
+        // Update parameter count in storage
+        chrome.storage.local.set({ "userParameterCount": parameters.children.length + 1 });
+        
+        // Recalculate iterations after removing a parameter
+        calculateIterations();
+      });
+    } else {
+      console.error("Remove button not found in the newly added parameter row");
+    }
+    
+    // Update parameter count in storage
+    chrome.storage.local.set({ "userParameterCount": parameters.children.length + 1 });
+    
+    // Calculate iterations after adding a new parameter
+    calculateIterations();
+  } else {
+    chrome.runtime.sendMessage({
+      notify: {
+        type: "warning",
+        content: "Parameter limit reached"
+      }
+    });
   }
 }
+
+// Load saved parameters
+function loadSavedParameters() {
+  chrome.storage.local.get("savedParameters", (result) => {
+    const savedParameters = result.savedParameters;
+    
+    if (savedParameters && savedParameters.length > 0) {
+      // Clear existing parameters
+      const parametersContainer = document.getElementById("parameters");
+      parametersContainer.innerHTML = '';
+      
+      // Get parameter limit based on user type
+      chrome.storage.local.get("isPlusUser", ({ isPlusUser }) => {
+        const parameterLimit = isPlusUser ? plusParameterLimit : freeParameterLimit;
+        
+        // Add saved parameters
+        for (const param of savedParameters) {
+          if (parametersContainer.children.length < parameterLimit) {
+            addParameterBlock(parameterLimit, param);
+          }
+        }
+        
+        // Calculate iterations after all parameters are loaded
+        setTimeout(() => {
+          calculateIterations();
+        }, 100);
+        
+        // Show notification
+        chrome.runtime.sendMessage({
+          notify: {
+            type: "info",
+            content: "Loaded saved parameters"
+          }
+        });
+      });
+    }
+  });
+}
+
+// Add this to the appropriate initialization section
+document.addEventListener('DOMContentLoaded', function() {
+  // Existing initialization code...
+  
+  // Load saved parameters after a short delay
+  setTimeout(() => {
+    loadSavedParameters();
+  }, 500);
+});
+
 
 function addParameterBlockHtml(orderOfParameter) {
   return '<div class="row g-2 pb-2">\
@@ -674,11 +829,20 @@ function calculateIterations() {
       break
     }
 
-    let difference = inputEnd - inputStart
-    if (isDivisible(difference, inputStep)) {
-      totalIterations *= (inputEnd - inputStart) / inputStep + 1
+    let start = parseFloat(inputStart)
+    let end = parseFloat(inputEnd)
+    
+    // If start equals end, this parameter has only 1 possible value
+    if (start === end) {
+      // Multiply by 1 (no change to total iterations)
+      totalIterations *= 1
     } else {
-      totalIterations *= customCeil((inputEnd - inputStart) / inputStep) + 1
+      let difference = end - start
+      if (isDivisible(difference, inputStep)) {
+        totalIterations *= (difference / inputStep) + 1
+      } else {
+        totalIterations *= customCeil((difference / inputStep)) + 1
+      }
     }
 
     isIterationValid = true
@@ -817,7 +981,6 @@ function isNumeric(str) {
     !isNaN(parseFloat(str))
 }
 
-// validateParameterValues returns specific error if validation fails 
 function validateParameterValues(inputStart, inputEnd, inputStep) {
   if (!isNumeric(inputStart) || !isNumeric(inputEnd) || !isNumeric(inputStep)) {
     return new Error("missing-parameters")
@@ -827,7 +990,8 @@ function validateParameterValues(inputStart, inputEnd, inputStep) {
   var end = parseFloat(inputEnd)
   var step = parseFloat(inputStep)
 
-  if (start >= end || step <= 0) {
+  // Allow start to equal end (treat as a fixed parameter)
+  if (start > end || step <= 0) {
     return new Error("wrong-parameter-values")
   }
 
@@ -886,4 +1050,3 @@ function eventPath(evt) {
   return [target].concat(getParents(target), window);
 }
 
-//#endregion
