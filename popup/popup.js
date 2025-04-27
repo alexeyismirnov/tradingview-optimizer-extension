@@ -36,18 +36,14 @@ function updateUserUI() {
       logo.style.cssText = 'display:none !important';
       var plusLogo = document.getElementById("plusLogo")
       plusLogo.style.cssText = 'display:block !important'
-      // remove plus upgrade button 
-      var plusUpgrade = document.getElementById("plusUpgrade")
-      plusUpgrade.style.display = 'none'
+      // We've removed the code that handles the plusUpgrade button
     } else {
       // hide plus logo
       var plusLogo = document.getElementById("plusLogo")
       plusLogo.style.cssText = 'display:none !important'
       var logo = document.getElementById("normalLogo")
       logo.style.cssText = 'display:block !important';
-      // add plus upgrade button 
-      var plusUpgrade = document.getElementById("plusUpgrade")
-      plusUpgrade.style.display = 'block'
+      // We've removed the code that handles the plusUpgrade button
     }
   });
 }
@@ -222,145 +218,112 @@ window.openReportDetail = {
 
 //#endregion
 
-//#region Profile Tab
-let profileTab = document.getElementById("profile-tab")
-profileTab.addEventListener("click", async () => {
-  await createProfileTab()
-})
+// Removed Profile Tab related code
 
 ProcessPlusFeatures();
 
 // wrap plus feature injector with google auth
 async function ProcessPlusFeatures() {
-  var token = ""
-  await new Promise(resolve => {
-    chrome.runtime.sendMessage({ type: "getAuthToken", isInteractive: false }, function (response) {
-      if (Object.keys(response).length > 0) {
-        token = response.token
+  // Set default parameter limit to free tier
+  var parameterLimit = freeParameterLimit;
+  
+  // Check if user has plus features enabled in storage
+  chrome.storage.local.get("isPlusUser", ({ isPlusUser }) => {
+    if (isPlusUser) {
+      parameterLimit = plusParameterLimit;
+      
+      // Show stop button for plus users
+      let stopOptimization = document.getElementById("stop");
+      if (stopOptimization) {
+        stopOptimization.addEventListener("click", async (clickEvent) => {
+          await getCurrentTab().then(function (tab) {
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: stopOptimizationEvent,
+              args: [JSON.stringify(clickEvent)],
+            });
+          });
+          stopOptimization.setAttribute("disabled", "");
+        });
+        
+        setTimeout(() => {
+          hideSkeleton("stop", "stop");
+          stopOptimization.style.display = 'block';
+        }, 300);
       }
-      resolve();
-    })
-  })
-  if (token === "") {
-    // clean parameter names
-    chrome.storage.local.set({ "parameterNames": null });
-    // Add Parameter Button Event Listener, with 'parameterLimit'
+      
+      // Initialize time frame selector for plus users
+      initializeTimeFrameSelector();
+    }
+    
+    // Add Parameter Button Event Listener with appropriate limit
     addParameter.addEventListener("click", async () => {
-      addParameterBlock(freeParameterLimit)
+      addParameterBlock(parameterLimit);
     });
-    chrome.storage.local.set({ "isPlusUser": false });
-    updateUserUI()
-    return
-  }
-  var userInfo;
-  userInfo = await getUserInfo(token)
-  await injectPlusFeatures(userInfo.email)
+    
+    updateUserUI();
+  });
 }
 
-// inject plus features for eligible users
-async function injectPlusFeatures(userEmail) {
-  var parameterLimit = freeParameterLimit
-  var user = await GetMembershipInfo(userEmail)
-  if (user.is_membership_active) {
-    chrome.storage.local.set({ "isPlusUser": true });
-    updateUserUI()
-    // show skeletons first for features
-    showSkeleton("timeFrame", "time-frame")
-    showSkeleton("stop", "stop")
-    // change parameter limit up for plus users
-    parameterLimit = plusParameterLimit
-    await getCurrentTab().then(function (tab) {
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['plus-injector.js']
-      });
-    })
-
-    let stopOptimization = document.getElementById("stop")
-    stopOptimization.addEventListener("click", async (clickEvent) => {
-      await getCurrentTab().then(function (tab) {
-        chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: stopOptimizationEvent,
-          args: [JSON.stringify(clickEvent)],
+// Helper function to initialize time frame selector for plus users
+function initializeTimeFrameSelector() {
+  $('#selectTimeFrame').multiselect({
+    buttonClass: 'form-select',
+    templates: {
+      button: '<button type="button" class="multiselect dropdown-toggle" data-bs-toggle="dropdown"><span class="multiselect-selected-text"></span></button>',
+    },
+    buttonWidth: '85.75px',
+    nonSelectedText: 'Time',
+    maxHeight: "200",
+    buttonText: function (options, select) {
+      if (options.length === 0) {
+        return 'Time';
+      }
+      else if (options.length > 3) {
+        return '...';
+      }
+      else {
+        var labels = [];
+        options.each(function () {
+          if ($(this).attr('label') !== undefined) {
+            labels.push($(this).attr('label'));
+          }
+          else {
+            var timeFrameTitle = TimeFrameMap.get($(this).html())
+            labels.push(timeFrameTitle);
+          }
         });
-      })
-      stopOptimization.setAttribute("disabled", "")
-    })
-    setTimeout(() => {
-      hideSkeleton("stop", "stop")
-      stopOptimization.style.display = 'block'
-    }, 300);
-
-
-    $('#selectTimeFrame').multiselect({
-      buttonClass: 'form-select',
-      templates: {
-        button: '<button type="button" class="multiselect dropdown-toggle" data-bs-toggle="dropdown"><span class="multiselect-selected-text"></span></button>',
-      },
-      buttonWidth: '85.75px',
-      nonSelectedText: 'Time',
-      maxHeight: "200",
-      buttonText: function (options, select) {
-        if (options.length === 0) {
-          return 'Time';
-        }
-        else if (options.length > 3) {
-          return '...';
-        }
-        else {
-          var labels = [];
-          options.each(function () {
-            if ($(this).attr('label') !== undefined) {
-              labels.push($(this).attr('label'));
-            }
-            else {
-              var timeFrameTitle = TimeFrameMap.get($(this).html())
-              labels.push(timeFrameTitle);
-            }
-          });
-          return labels.join(', ') + '';
-        }
-      },
-      onChange: async function (option, checked, select) {
-        var timeFrameValue = option[0].value
-        var userTimeFramesObj = await chrome.storage.local.get("userTimeFrames")
-        var userTimeFrames = []
-        if (Object.keys(userTimeFramesObj).length > 0 && userTimeFramesObj.userTimeFrames != null) {
-          userTimeFrames = userTimeFramesObj.userTimeFrames
-        }
-        if (checked) {
-          userTimeFrames.push(timeFrameValue)
-        } else {
-          for (let i = 0; i < userTimeFrames.length; i++) {
-            if (userTimeFrames[i] == timeFrameValue) {
-              userTimeFrames.splice(i, 1)
-            }
+        return labels.join(', ') + '';
+      }
+    },
+    onChange: async function (option, checked, select) {
+      var timeFrameValue = option[0].value
+      var userTimeFramesObj = await chrome.storage.local.get("userTimeFrames")
+      var userTimeFrames = []
+      if (Object.keys(userTimeFramesObj).length > 0 && userTimeFramesObj.userTimeFrames != null) {
+        userTimeFrames = userTimeFramesObj.userTimeFrames
+      }
+      if (checked) {
+        userTimeFrames.push(timeFrameValue)
+      } else {
+        for (let i = 0; i < userTimeFrames.length; i++) {
+          if (userTimeFrames[i] == timeFrameValue) {
+            userTimeFrames.splice(i, 1)
           }
         }
-        chrome.storage.local.set({ "userTimeFrames": userTimeFrames })
       }
-    });
-    chrome.storage.local.get("userTimeFrames", ({ userTimeFrames }) => {
-      $('#selectTimeFrame').multiselect('select', userTimeFrames, false);
-    });
-    setTimeout(() => {
-      hideSkeleton("timeFrame", "time-frame")
-      document.getElementById("timeFrame").style.display = 'block'
-    }, 200);
-  } else {
-    chrome.storage.local.set({ "isPlusUser": false });
-  }
-  // Add Parameter Button Event Listener, with 'parameterLimit'
-  addParameter.addEventListener("click", async () => {
-    addParameterBlock(parameterLimit)
+      chrome.storage.local.set({ "userTimeFrames": userTimeFrames })
+    }
   });
-
-  // dispatch stop optimization event for plus users by clicking stop button
-  function stopOptimizationEvent(clickEvent) {
-    var event = JSON.parse(clickEvent)
-    window.postMessage({ type: "StopOptimizationEvent", detail: { event: event } }, "*");
-  }
+  
+  chrome.storage.local.get("userTimeFrames", ({ userTimeFrames }) => {
+    $('#selectTimeFrame').multiselect('select', userTimeFrames, false);
+  });
+  
+  setTimeout(() => {
+    hideSkeleton("timeFrame", "time-frame")
+    document.getElementById("timeFrame").style.display = 'block'
+  }, 200);
 }
 
 async function getCurrentTab() {
@@ -368,7 +331,13 @@ async function getCurrentTab() {
   let [tab] = await chrome.tabs.query(queryOptions);
   return tab;
 }
-//
+
+// dispatch stop optimization event for plus users by clicking stop button
+function stopOptimizationEvent(clickEvent) {
+  var event = JSON.parse(clickEvent)
+  window.postMessage({ type: "StopOptimizationEvent", detail: { event: event } }, "*");
+}
+
 function autoFillParameters(parameterNames) {
   if (parameterNames.length < 1) {
     chrome.storage.local.set({ "parameterNames": null });
@@ -404,82 +373,6 @@ function autoFillParameters(parameterNames) {
   }
   chrome.storage.local.set({ "parameterNames": parameterNames });
 }
-
-async function createProfileTab() {
-  var token = ""
-  await new Promise(resolve => {
-    chrome.runtime.sendMessage({ type: "getAuthToken", isInteractive: false }, function (response) {
-      if (Object.keys(response).length > 0) {
-        token = response.token
-      }
-      resolve();
-    })
-  })
-  if (token === "") {
-    setTimeout(() => {
-      hideSkeleton("login", "profile")
-    }, 250);
-    return
-  }
-  var userInfo;
-  userInfo = await getUserInfo(token)
-  setTimeout(() => {
-    hideSkeleton("profile", "profile")
-  }, 250);
-  document.querySelector("#freeUser #userEmail").innerText = userInfo.email
-  var user = await GetMembershipInfo(userInfo.email)
-  if (user.is_membership_active) {
-    document.getElementById("freeUser").style.display = 'none'
-    document.getElementById("paidUser").style.display = 'flex'
-    document.querySelector("#paidUser #userEmail").innerText = userInfo.email
-    var membershipPeriodEndDate = new Date(user.current_membership_period_end * 1000)
-    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    var year = membershipPeriodEndDate.getFullYear();
-    var month = months[membershipPeriodEndDate.getMonth()];
-    var date = membershipPeriodEndDate.getDate();
-    var time = date + ' ' + month + ' ' + year + ' '
-    document.querySelector("#membershipRenewal h6").textContent = time;
-  }
-}
-
-async function getUserInfo(token) {
-  var userInfo = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: {
-      'Authorization': 'Bearer ' + token
-    }
-  })
-    .then(response => response.json())
-
-  return userInfo
-}
-
-
-let loginButton = document.getElementById("loginButton");
-loginButton.addEventListener("click", async () => {
-  chrome.runtime.sendMessage({ type: "getAuthToken", isInteractive: true }, function (response) {
-  })
-});
-
-let logoutButtons = document.querySelectorAll("#logoutButton")
-logoutButtons.forEach(logoutButton => {
-  logoutButton.addEventListener("click", async () => {
-    showSkeleton("profile", "profile")
-    chrome.runtime.sendMessage({ type: "getAuthToken", isInteractive: false }, function (response) {
-      var url = 'https://accounts.google.com/o/oauth2/revoke?token=' + response.token;
-      window.fetch(url);
-    })
-
-    chrome.runtime.sendMessage({ type: "clearAllCachedAuthTokens" })
-    setTimeout(() => {
-      hideSkeleton("login", "profile")
-    }, 250);
-    chrome.storage.local.set({ "isPlusUser": false });
-    updateUserUI()
-  });
-})
-
-
-//#endregion
 
 // Add Save Parameters button event listener
 document.getElementById("save-parameters").addEventListener("click", function() {
@@ -799,9 +692,7 @@ function addTabEventListeners() {
     document.body.style.width = '560px'
   })
 
-  document.querySelector("#profile-tab").addEventListener("click", function () {
-    document.body.style.width = '560px'
-  })
+  // Removed Profile tab event listener
 }
 // Refresh table data with refresh button
 function addRefreshDataEventListener() {
@@ -901,39 +792,6 @@ async function CreateUserInputsMessage(userInputs) {
   return null
 }
 
-// plus membership
-async function GetMembershipInfo(userEmail) {
-
-  const opGetMembershipInfoURL = "https://api-stg.optipie.app/api/v1/user/membership/"
-  var request = opGetMembershipInfoURL + userEmail
-  // Make a GET request to auth api
-  var user = await fetch(request)
-    .then(response => {
-      if (!response.ok) {
-        if (response.status === 404) {
-          return {
-            data: {
-              email: userEmail,
-              is_membership_active: false,
-            }
-          }
-        }
-        else {
-          throw new Error('Network response was not ok');
-        }
-      }
-      return response.json();
-    })
-    .then(response => {
-      return response.data
-    })
-    .catch(error => {
-      console.error("Error: ", error)
-      return null
-    });
-
-  return user;
-}
 // Timeframe mapping from long to short name
 var TimeFrameMap = new Map([
   ['1 second', '1s'],
@@ -1049,4 +907,3 @@ function eventPath(evt) {
 
   return [target].concat(getParents(target), window);
 }
-
