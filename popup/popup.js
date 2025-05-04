@@ -5,13 +5,12 @@ const getParameterNames = 'getParameterNames'
 
 let optimize = document.getElementById("optimize");
 let addParameter = document.getElementById("addParameter");
-let freeParameterLimit = 5
-let plusParameterLimit = 20
+let parameterLimit = 5;  // Fixed parameter limit
 
 // Initialize popup html according to last user parameter count state
 chrome.storage.local.get("userParameterCount", ({ userParameterCount }) => {
   for (let i = 1; i < userParameterCount; i++) {
-    addParameterBlock(plusParameterLimit)
+    addParameterBlock(parameterLimit)
   }
   setLastUserParameters(userParameterCount)
   setTimeout(() => {
@@ -19,35 +18,13 @@ chrome.storage.local.get("userParameterCount", ({ userParameterCount }) => {
     calculateIterations()
   }, 150);
 });
+
 // Tab event listeners to change body width 
 addTabEventListeners()
 
 // Save Inputs EventListener for first parameters as default
 addSaveInputEventListener(0)
 addSaveAutoFillSelectionListener(0)
-updateUserUI()
-
-// non-functional UI changes made with storage
-function updateUserUI() {
-  chrome.storage.local.get("isPlusUser", ({ isPlusUser }) => {
-    if (isPlusUser) {
-      // show plus logo
-      var logo = document.getElementById("normalLogo")
-      logo.style.cssText = 'display:none !important';
-      var plusLogo = document.getElementById("plusLogo")
-      plusLogo.style.cssText = 'display:block !important'
-      // We've removed the code that handles the plusUpgrade button
-    } else {
-      // hide plus logo
-      var plusLogo = document.getElementById("plusLogo")
-      plusLogo.style.cssText = 'display:none !important'
-      var logo = document.getElementById("normalLogo")
-      logo.style.cssText = 'display:block !important';
-      // We've removed the code that handles the plusUpgrade button
-    }
-  });
-}
-
 
 // Add start optimize event listener
 optimize.addEventListener("click", async () => {
@@ -108,7 +85,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   }
 });
 
-// Create Reports and Profile Tabs
+// Create Reports Table
 createReportTable()
 
 // Refresh Report Data Manually 
@@ -147,7 +124,6 @@ async function createReportTable() {
     $table.bootstrapTable({ data: reportData })
     $table.bootstrapTable('load', reportData)
   });
-
 }
 
 function reportDetailHtml(strategyID) {
@@ -198,12 +174,10 @@ function strategyNameColumnStyle(value, row, index) {
   }
 }
 
-
 window.openReportDetail = {
   // Set ReportDetail query string to build html report detail dynamically 
   'click #report-detail-button': function (e, value, row, index) {
     chrome.tabs.create({ url: 'report/reportdetail.html?strategyID=' + row.strategyID })
-
   },
   // Remove Report from both storage and table
   'click #remove-report': function (e, value, row, index) {
@@ -218,161 +192,10 @@ window.openReportDetail = {
 
 //#endregion
 
-// Removed Profile Tab related code
-
-ProcessPlusFeatures();
-
-// wrap plus feature injector with google auth
-async function ProcessPlusFeatures() {
-  // Set default parameter limit to free tier
-  var parameterLimit = freeParameterLimit;
-  
-  // Check if user has plus features enabled in storage
-  chrome.storage.local.get("isPlusUser", ({ isPlusUser }) => {
-    if (isPlusUser) {
-      parameterLimit = plusParameterLimit;
-      
-      // Show stop button for plus users
-      let stopOptimization = document.getElementById("stop");
-      if (stopOptimization) {
-        stopOptimization.addEventListener("click", async (clickEvent) => {
-          await getCurrentTab().then(function (tab) {
-            chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: stopOptimizationEvent,
-              args: [JSON.stringify(clickEvent)],
-            });
-          });
-          stopOptimization.setAttribute("disabled", "");
-        });
-        
-        setTimeout(() => {
-          hideSkeleton("stop", "stop");
-          stopOptimization.style.display = 'block';
-        }, 300);
-      }
-      
-      // Initialize time frame selector for plus users
-      initializeTimeFrameSelector();
-    }
-    
-    // Add Parameter Button Event Listener with appropriate limit
-    addParameter.addEventListener("click", async () => {
-      addParameterBlock(parameterLimit);
-    });
-    
-    updateUserUI();
-  });
-}
-
-// Helper function to initialize time frame selector for plus users
-function initializeTimeFrameSelector() {
-  $('#selectTimeFrame').multiselect({
-    buttonClass: 'form-select',
-    templates: {
-      button: '<button type="button" class="multiselect dropdown-toggle" data-bs-toggle="dropdown"><span class="multiselect-selected-text"></span></button>',
-    },
-    buttonWidth: '85.75px',
-    nonSelectedText: 'Time',
-    maxHeight: "200",
-    buttonText: function (options, select) {
-      if (options.length === 0) {
-        return 'Time';
-      }
-      else if (options.length > 3) {
-        return '...';
-      }
-      else {
-        var labels = [];
-        options.each(function () {
-          if ($(this).attr('label') !== undefined) {
-            labels.push($(this).attr('label'));
-          }
-          else {
-            var timeFrameTitle = TimeFrameMap.get($(this).html())
-            labels.push(timeFrameTitle);
-          }
-        });
-        return labels.join(', ') + '';
-      }
-    },
-    onChange: async function (option, checked, select) {
-      var timeFrameValue = option[0].value
-      var userTimeFramesObj = await chrome.storage.local.get("userTimeFrames")
-      var userTimeFrames = []
-      if (Object.keys(userTimeFramesObj).length > 0 && userTimeFramesObj.userTimeFrames != null) {
-        userTimeFrames = userTimeFramesObj.userTimeFrames
-      }
-      if (checked) {
-        userTimeFrames.push(timeFrameValue)
-      } else {
-        for (let i = 0; i < userTimeFrames.length; i++) {
-          if (userTimeFrames[i] == timeFrameValue) {
-            userTimeFrames.splice(i, 1)
-          }
-        }
-      }
-      chrome.storage.local.set({ "userTimeFrames": userTimeFrames })
-    }
-  });
-  
-  chrome.storage.local.get("userTimeFrames", ({ userTimeFrames }) => {
-    $('#selectTimeFrame').multiselect('select', userTimeFrames, false);
-  });
-  
-  setTimeout(() => {
-    hideSkeleton("timeFrame", "time-frame")
-    document.getElementById("timeFrame").style.display = 'block'
-  }, 200);
-}
-
-async function getCurrentTab() {
-  let queryOptions = { active: true, lastFocusedWindow: true };
-  let [tab] = await chrome.tabs.query(queryOptions);
-  return tab;
-}
-
-// dispatch stop optimization event for plus users by clicking stop button
-function stopOptimizationEvent(clickEvent) {
-  var event = JSON.parse(clickEvent)
-  window.postMessage({ type: "StopOptimizationEvent", detail: { event: event } }, "*");
-}
-
-function autoFillParameters(parameterNames) {
-  if (parameterNames.length < 1) {
-    chrome.storage.local.set({ "parameterNames": null });
-    return
-  }
-  // hide labels, show selectors
-  var labels = document.querySelectorAll('label[for="inputStart"]')
-  labels.forEach(label => {
-    label.style.display = 'none'
-  });
-
-  var autoFillSelects = document.querySelectorAll("#selectAutoFill")
-  for (let i = 0; i < autoFillSelects.length; i++) {
-    const autoFillSelect = autoFillSelects[i];
-    if (autoFillSelect.options.length > 1) {
-      continue;
-    }
-    autoFillSelect.style.display = 'inline-block'
-    for (var j = 0; j < parameterNames.length; j++) {
-      var parameterName = parameterNames[j];
-      var parameterNameIndex = j;
-      let option = new Option(parameterName, parameterNameIndex);
-      autoFillSelect.add(option);
-    }
-
-    chrome.storage.local.get(["selectAutoFill" + i], function (result) {
-      var userValue = i
-      if (result["selectAutoFill" + i] && result["selectAutoFill" + i] <= parameterNames.length - 1) {
-        userValue = result["selectAutoFill" + i]
-      }
-      autoFillSelect.value = userValue
-    });
-  }
-  chrome.storage.local.set({ "parameterNames": parameterNames });
-}
+// Add Parameter Button Event Listener
+addParameter.addEventListener("click", async () => {
+  addParameterBlock(parameterLimit);
+});
 
 // Add Save Parameters button event listener
 document.getElementById("save-parameters").addEventListener("click", function() {
@@ -529,29 +352,24 @@ function loadSavedParameters() {
       const parametersContainer = document.getElementById("parameters");
       parametersContainer.innerHTML = '';
       
-      // Get parameter limit based on user type
-      chrome.storage.local.get("isPlusUser", ({ isPlusUser }) => {
-        const parameterLimit = isPlusUser ? plusParameterLimit : freeParameterLimit;
-        
-        // Add saved parameters
-        for (const param of savedParameters) {
-          if (parametersContainer.children.length < parameterLimit) {
-            addParameterBlock(parameterLimit, param);
-          }
+      // Add saved parameters
+      for (const param of savedParameters) {
+        if (parametersContainer.children.length < parameterLimit) {
+          addParameterBlock(parameterLimit, param);
         }
-        
-        // Calculate iterations after all parameters are loaded
-        setTimeout(() => {
-          calculateIterations();
-        }, 100);
-        
-        // Show notification
-        chrome.runtime.sendMessage({
-          notify: {
-            type: "info",
-            content: "Loaded saved parameters"
-          }
-        });
+      }
+      
+      // Calculate iterations after all parameters are loaded
+      setTimeout(() => {
+        calculateIterations();
+      }, 100);
+      
+      // Show notification
+      chrome.runtime.sendMessage({
+        notify: {
+          type: "info",
+          content: "Loaded saved parameters"
+        }
       });
     }
   });
@@ -559,14 +377,11 @@ function loadSavedParameters() {
 
 // Add this to the appropriate initialization section
 document.addEventListener('DOMContentLoaded', function() {
-  // Existing initialization code...
-  
   // Load saved parameters after a short delay
   setTimeout(() => {
     loadSavedParameters();
   }, 500);
 });
-
 
 function addParameterBlockHtml(orderOfParameter) {
   return '<div class="row g-2 pb-2">\
@@ -653,6 +468,7 @@ function setLastUserParameters(parameterCount) {
     });
   }
 }
+
 // Save last user inputs to storage as state
 function addSaveInputEventListener(parameterCount) {
   document.querySelectorAll("#inputStart")[parameterCount].addEventListener("blur", function (e) {
@@ -674,7 +490,8 @@ function addSaveInputEventListener(parameterCount) {
     calculateIterations()
   });
 }
-// Save last user selected time frame(s) as state
+
+// Save last user selected auto-fill selection as state
 function addSaveAutoFillSelectionListener(parameterCount) {
   document.querySelectorAll("#selectAutoFill")[parameterCount].addEventListener("change", (event) => {
     var key = "selectAutoFill" + parameterCount
@@ -682,6 +499,7 @@ function addSaveAutoFillSelectionListener(parameterCount) {
     chrome.storage.local.set({ [key]: value });
   });
 }
+
 // Dynamically change html body size 
 function addTabEventListeners() {
   document.querySelector("#reports-tab").addEventListener("click", function () {
@@ -691,9 +509,12 @@ function addTabEventListeners() {
   document.querySelector("#home-tab").addEventListener("click", function () {
     document.body.style.width = '560px'
   })
-
-  // Removed Profile tab event listener
+  
+  document.querySelector("#favs-tab").addEventListener("click", function () {
+    document.body.style.width = '720px';
+  })
 }
+
 // Refresh table data with refresh button
 function addRefreshDataEventListener() {
   document.querySelector("#refresh").addEventListener("click", function () {
@@ -707,7 +528,7 @@ function calculateIterations() {
   var parameters = document.getElementById("parameters")
   var parameterCount = parameters.children.length
 
-  var iterationValue = document.querySelector("#iteration #value")
+  var iterationValue = document.querySelector("#value")
 
   for (let i = 0; i < parameterCount; i++) {
     var inputStart = parameters.children[i].querySelector("#inputStart").value.trim()
@@ -768,7 +589,7 @@ async function CreateUserInputsMessage(userInputs) {
       return err
     }
 
-    // no selection for parameter name, autofill parameter name in order for plus users 
+    // no selection for parameter name, autofill parameter name in order
     if (index == -1 && firstAutoFillOptions > 1) {
       parameterName = parameterNamesObj?.parameterNames[i]
     }
@@ -781,55 +602,46 @@ async function CreateUserInputsMessage(userInputs) {
     userInputs.parameters.push({ start: inputStart, end: inputEnd, stepSize: inputStep, parameterIndex: index, parameterName: parameterName })
   }
 
-  var selected = []
-  $('#selectTimeFrame option:selected').each(function () {
-    selected.push([$(this).val(), $(this).data('order')]);
-  });
-
-  if (selected.length > 0) {
-    userInputs.timeFrames = selected
-  }
   return null
 }
 
-// Timeframe mapping from long to short name
-var TimeFrameMap = new Map([
-  ['1 second', '1s'],
-  ['5 seconds', '5s'],
-  ['10 seconds', '10s'],
-  ['15 seconds', '15s'],
-  ['30 seconds', '30s'],
-  ['1 minute', '1m'],
-  ['2 minutes', '2m'],
-  ['3 minutes', '3m'],
-  ['5 minutes', '5m'],
-  ['10 minutes', '10m'],
-  ['15 minutes', '15m'],
-  ['30 minutes', '30m'],
-  ['45 minutes', '45m'],
-  ['1 hour', '1h'],
-  ['2 hours', '2h'],
-  ['3 hours', '3h'],
-  ['4 hours', '4h'],
-  ['1 day', 'D'],
-  ['1 week', 'W'],
-  ['1 month', 'M'],
-  ['3 months', '3M'],
-  ['6 months', '6M'],
-  ['12 months', '12M'],
-]);
+function autoFillParameters(parameterNames) {
+  if (parameterNames.length < 1) {
+    chrome.storage.local.set({ "parameterNames": null });
+    return
+  }
+  // hide labels, show selectors
+  var labels = document.querySelectorAll('label[for="inputStart"]')
+  labels.forEach(label => {
+    label.style.display = 'none'
+  });
+
+  var autoFillSelects = document.querySelectorAll("#selectAutoFill")
+  for (let i = 0; i < autoFillSelects.length; i++) {
+    const autoFillSelect = autoFillSelects[i];
+    if (autoFillSelect.options.length > 1) {
+      continue;
+    }
+    autoFillSelect.style.display = 'inline-block'
+    for (var j = 0; j < parameterNames.length; j++) {
+      var parameterName = parameterNames[j];
+      var parameterNameIndex = j;
+      let option = new Option(parameterName, parameterNameIndex);
+      autoFillSelect.add(option);
+    }
+
+    chrome.storage.local.get(["selectAutoFill" + i], function (result) {
+      var userValue = i
+      if (result["selectAutoFill" + i] && result["selectAutoFill" + i] <= parameterNames.length - 1) {
+        userValue = result["selectAutoFill" + i]
+      }
+      autoFillSelect.value = userValue
+    });
+  }
+  chrome.storage.local.set({ "parameterNames": parameterNames });
+}
 
 //#region Helpers 
-
-function hideSkeleton(elementToShow, skeletonId) {
-  document.getElementById("skeleton-" + skeletonId).style.display = 'none'
-  document.getElementById(elementToShow).style.display = 'block'
-}
-
-function showSkeleton(elementToHide, skeletonId) {
-  document.getElementById("skeleton-" + skeletonId).style.display = 'block'
-  document.getElementById(elementToHide).style.display = 'none'
-}
 
 function isNumeric(str) {
   if (typeof str != "string") {
