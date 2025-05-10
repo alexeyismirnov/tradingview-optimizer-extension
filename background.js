@@ -23,25 +23,6 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   }
 });
 
-chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-  if (request.type === "getAuthToken") {
-    chrome.identity.getAuthToken({ interactive: request.isInteractive }, function (token) {
-      sendResponse({ token: token });
-    });
-  }
-  return true
-});
-
-chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-  if (request.type === "clearAllCachedAuthTokens") {
-    chrome.identity.getAuthToken({ interactive: false }, function (token) {
-      chrome.identity.removeCachedAuthToken({ token: token }, function () { });
-      chrome.identity.clearAllCachedAuthTokens();
-    });
-  }
-  return true
-});
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SleepEventStart") {
       const delay = message.delay || 3000;
@@ -57,7 +38,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "update"){
     chrome.tabs.create({url: "https://optipie.app/news/", active: true});
   }
-})
+});
 
 chrome.runtime.onStartup.addListener(() => {
   chrome.storage.local.set({
@@ -66,4 +47,4 @@ chrome.runtime.onStartup.addListener(() => {
   }, function () {
     console.log("User parameter count state set to 0 at start up");
   });
-})
+});
